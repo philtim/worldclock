@@ -28,6 +28,9 @@ const (
 // tickMsg is sent every second to update the clocks
 type tickMsg time.Time
 
+// spinnerTickMsg is sent to update the spinner animation
+type spinnerTickMsg time.Time
+
 // geonamesReadyMsg is sent when GeoNames database is ready
 type geonamesReadyMsg struct{}
 
@@ -50,6 +53,10 @@ type model struct {
 	height   int
 	quitting bool
 
+	// Spinner state
+	spinnerFrame   int
+	geonamesReady  bool
+
 	// Add mode state
 	searchInput       textinput.Model
 	searchResults     []geonames.City
@@ -70,6 +77,7 @@ type model struct {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		tickCmd(),
+		spinnerTickCmd(),
 		checkGeoNamesCmd(m.geonamesDB),
 	)
 }
@@ -103,11 +111,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		cmds = append(cmds, tickCmd())
 
+	case spinnerTickMsg:
+		// Update spinner animation
+		m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+		// Continue spinner animation only if GeoNames is not ready
+		if !m.geonamesReady {
+			cmds = append(cmds, spinnerTickCmd())
+		}
+
 	case geonamesReadyMsg:
-		// GeoNames database is ready, no action needed
+		// GeoNames database is ready
+		m.geonamesReady = true
 
 	case geonamesErrorMsg:
 		m.err = msg.err
+		m.geonamesReady = true // Stop spinner on error too
 
 	case error:
 		m.err = msg
@@ -512,25 +530,58 @@ func (m model) renderConfirm() string {
 
 // renderCommandBar renders the command bar at the bottom
 func (m model) renderCommandBar() string {
-	style := lipgloss.NewStyle().
+	leftStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		Background(lipgloss.Color("235")).
 		Padding(0, 1)
 
-	var commands string
-	if m.geonamesDB.IsReady() {
-		commands = "a: Add City | d: Delete Cities | q: Quit"
-	} else {
-		commands = "Loading city database... | d: Delete Cities | q: Quit"
-	}
+	rightStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 1)
 
-	return style.Render(commands)
+	// Left side: commands
+	commands := "a: Add City | d: Delete Cities | q: Quit"
+	leftContent := leftStyle.Render(commands)
+
+	// Right side: GeoNames status
+	var status string
+	if m.geonamesReady {
+		status = "GeoNames: Ready"
+	} else {
+		spinner := spinnerFrames[m.spinnerFrame]
+		status = fmt.Sprintf("%s Loading GeoNames...", spinner)
+	}
+	rightContent := rightStyle.Render(status)
+
+	// Calculate spacing to push right content to the right
+	leftWidth := lipgloss.Width(leftContent)
+	rightWidth := lipgloss.Width(rightContent)
+	spacingWidth := m.width - leftWidth - rightWidth
+	if spacingWidth < 0 {
+		spacingWidth = 0
+	}
+	spacing := strings.Repeat(" ", spacingWidth)
+
+	// Combine with background color
+	barStyle := lipgloss.NewStyle().Background(lipgloss.Color("235"))
+	return barStyle.Render(leftContent + spacing + rightContent)
 }
+
+// spinnerFrames are the characters used for the loading animation
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // tickCmd returns a command that sends a tick message every second
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// spinnerTickCmd returns a command that sends a spinner tick message
+func spinnerTickCmd() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return spinnerTickMsg(t)
 	})
 }
 
