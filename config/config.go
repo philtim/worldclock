@@ -87,8 +87,29 @@ func getConfigPath() (string, error) {
 	return filepath.Join(homeDir, ".config", "worldclock.yaml"), nil
 }
 
+// ConfigExists checks if the config file exists
+func ConfigExists() (bool, error) {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(configPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // createDefaultConfig creates a default configuration file with system timezone
 func createDefaultConfig(path string) error {
+	return createDefaultConfigWithCity(path, "Local")
+}
+
+// createDefaultConfigWithCity creates a default configuration file with specified city name
+func createDefaultConfigWithCity(path, cityName string) error {
 	// Create .config directory if it doesn't exist
 	configDir := filepath.Dir(path)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -101,7 +122,7 @@ func createDefaultConfig(path string) error {
 	// Create default config with only system timezone
 	defaultConfig := Config{
 		Cities: []City{
-			{Name: "Local", Timezone: systemTZ},
+			{Name: cityName, Timezone: systemTZ},
 		},
 	}
 
@@ -117,6 +138,15 @@ func createDefaultConfig(path string) error {
 	}
 
 	return nil
+}
+
+// CreateDefaultConfigWithCity is the exported version for use by main package
+func CreateDefaultConfigWithCity(cityName string) error {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+	return createDefaultConfigWithCity(configPath, cityName)
 }
 
 // getSystemTimezone returns the system's IANA timezone name

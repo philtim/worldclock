@@ -579,7 +579,7 @@ func renderClocks(clocks []*clock.Clock, width, height int) string {
 
 	// Calculate grid dimensions
 	numClocks := len(clocks)
-	cols := calculateColumns(numClocks, width)
+	cols := calculateColumns(clocks, width)
 	rows := (numClocks + cols - 1) / cols // Ceiling division
 
 	// Determine clock card width
@@ -660,31 +660,83 @@ func renderClockCard(clk *clock.Clock, width int) string {
 	return cardStyle.Render(content)
 }
 
-// calculateColumns determines the number of columns based on terminal width
-func calculateColumns(numClocks, width int) int {
-	// Each clock needs approximately 30 characters minimum
-	minCardWidth := 30
-
-	maxCols := width / minCardWidth
-	if maxCols < 1 {
-		maxCols = 1
+// calculateColumns determines the number of columns based on terminal width and city name lengths
+func calculateColumns(clocks []*clock.Clock, width int) int {
+	// Find the longest city name (uppercase)
+	maxCityNameLen := 0
+	for _, clk := range clocks {
+		cityNameLen := len(strings.ToUpper(clk.Name))
+		if cityNameLen > maxCityNameLen {
+			maxCityNameLen = cityNameLen
+		}
 	}
 
-	// Determine optimal number of columns
-	if numClocks <= 2 {
-		return numClocks
-	} else if numClocks <= 4 && maxCols >= 2 {
-		return 2
-	} else if numClocks <= 6 && maxCols >= 3 {
-		return 3
-	} else if maxCols >= 4 {
+	// Minimum content width needed:
+	// - Date line is typically ~27 chars: "2025-12-03 - UTC+01:00"
+	// - City name needs to fit
+	minContentWidth := maxCityNameLen
+	if minContentWidth < 27 {
+		minContentWidth = 27
+	}
+
+	// Calculate minimum card width needed
+	// Account for: border (2), padding left/right (4), margin left (1)
+	// Total overhead per card: 7 characters
+	minCardWidth := minContentWidth + 7
+
+	// Try 4 columns first (default preference)
+	// Add some buffer space between cards
+	if width >= (minCardWidth * 4) + 8 {
 		return 4
 	}
 
-	return maxCols
+	// Fall back to 2 columns
+	if width >= (minCardWidth * 2) + 4 {
+		return 2
+	}
+
+	// Last resort: 1 column
+	return 1
 }
 
 func main() {
+	// Check if config exists
+	configExists, err := config.ConfigExists()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error checking config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// If config doesn't exist, create it with a smart city name
+	if !configExists {
+		fmt.Println("First run detected. Setting up configuration...")
+		fmt.Println("Downloading city database (this may take a moment)...")
+
+		// Initialize GeoNames database and load synchronously
+		geonamesDB := geonames.NewDatabase()
+		if err := geonamesDB.LoadSync(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Could not load city database: %v\n", err)
+			fmt.Println("Using 'Local' as default city name.")
+			if err := config.CreateDefaultConfigWithCity("Local"); err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating config: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			// Find best city for system timezone
+			systemTZ := config.GetSystemTimezone()
+			cityName := geonamesDB.FindBestCityForTimezone(systemTZ)
+			fmt.Printf("Detected timezone: %s\n", systemTZ)
+			fmt.Printf("Using city: %s\n", cityName)
+
+			if err := config.CreateDefaultConfigWithCity(cityName); err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating config: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		fmt.Println("Configuration created successfully!")
+		fmt.Println()
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

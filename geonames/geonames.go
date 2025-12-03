@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -24,6 +25,7 @@ type City struct {
 	Name        string
 	CountryCode string
 	Timezone    string
+	Population  int
 }
 
 // Database holds the GeoNames cities data
@@ -143,6 +145,39 @@ func (db *Database) Search(query string, maxResults int) []City {
 	return results
 }
 
+// FindBestCityForTimezone finds the most populous city in the given timezone
+// Returns the city name, or "Local" if no city is found
+func (db *Database) FindBestCityForTimezone(timezone string) string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	if !db.ready {
+		return "Local"
+	}
+
+	var bestCity *City
+	maxPopulation := 0
+
+	for i := range db.cities {
+		city := &db.cities[i]
+		if city.Timezone == timezone && city.Population > maxPopulation {
+			maxPopulation = city.Population
+			bestCity = city
+		}
+	}
+
+	if bestCity != nil {
+		return bestCity.Name
+	}
+
+	return "Local"
+}
+
+// LoadSync loads the GeoNames database synchronously (blocking)
+func (db *Database) LoadSync() error {
+	return db.load()
+}
+
 // getCachePath returns the path to the cache file
 func getCachePath() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -256,16 +291,24 @@ func parseFile(path string) ([]City, error) {
 		name := fields[1]        // City name
 		countryCode := fields[8] // Country code
 		timezone := fields[17]   // Timezone
+		populationStr := fields[14] // Population
 
 		// Skip if timezone is empty
 		if timezone == "" {
 			continue
 		}
 
+		// Parse population (default to 0 if parsing fails)
+		population := 0
+		if pop, err := strconv.Atoi(populationStr); err == nil {
+			population = pop
+		}
+
 		cities = append(cities, City{
 			Name:        name,
 			CountryCode: countryCode,
 			Timezone:    timezone,
+			Population:  population,
 		})
 	}
 
