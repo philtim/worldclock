@@ -130,3 +130,114 @@ func getSystemTimezone() string {
 	// Fallback to UTC if we can't determine
 	return "UTC"
 }
+
+// GetSystemTimezone returns the system's IANA timezone name (exported version)
+func GetSystemTimezone() string {
+	return getSystemTimezone()
+}
+
+// Save writes the configuration to ~/.config/worldclock.yaml atomically
+func (c *Config) Save() error {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+
+	// Validate before saving
+	if err := c.Validate(); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Atomic write: write to temp file, then rename
+	configDir := filepath.Dir(configPath)
+	tempFile, err := os.CreateTemp(configDir, "worldclock-*.yaml.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempPath := tempFile.Name()
+
+	// Write data
+	if _, err := tempFile.Write(data); err != nil {
+		tempFile.Close()
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	// Close temp file
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Rename temp file to actual config file
+	if err := os.Rename(tempPath, configPath); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	return nil
+}
+
+// AddCity adds a new city to the configuration
+func (c *Config) AddCity(name, timezone string) error {
+	// Check if city already exists
+	for _, city := range c.Cities {
+		if city.Name == name && city.Timezone == timezone {
+			return fmt.Errorf("city '%s' already exists", name)
+		}
+	}
+
+	// Validate timezone
+	if _, err := time.LoadLocation(timezone); err != nil {
+		return fmt.Errorf("invalid timezone '%s': %w", timezone, err)
+	}
+
+	// Add city
+	c.Cities = append(c.Cities, City{
+		Name:     name,
+		Timezone: timezone,
+	})
+
+	return nil
+}
+
+// DeleteCities removes cities by name from the configuration
+func (c *Config) DeleteCities(names []string) error {
+	// Create a map for quick lookup
+	toDelete := make(map[string]bool)
+	for _, name := range names {
+		toDelete[name] = true
+	}
+
+	// Filter cities
+	var remaining []City
+	for _, city := range c.Cities {
+		if !toDelete[city.Name] {
+			remaining = append(remaining, city)
+		}
+	}
+
+	// Check if we have at least one city left
+	if len(remaining) == 0 {
+		return fmt.Errorf("cannot delete all cities")
+	}
+
+	c.Cities = remaining
+	return nil
+}
+
+// HasCity checks if a city with the given name exists
+func (c *Config) HasCity(name string) bool {
+	for _, city := range c.Cities {
+		if city.Name == name {
+			return true
+		}
+	}
+	return false
+}
