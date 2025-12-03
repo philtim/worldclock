@@ -583,7 +583,8 @@ func renderClocks(clocks []*clock.Clock, width, height int) string {
 	rows := (numClocks + cols - 1) / cols // Ceiling division
 
 	// Determine clock card width
-	cardWidth := (width / cols) - 4 // Leave some margin
+	// Account for: margin (2 left + 1 right), border (2), padding (4), and some buffer
+	cardWidth := (width / cols) - 10
 
 	// Create clock cards
 	var clockCards []string
@@ -616,7 +617,9 @@ func renderClockCard(clk *clock.Clock, width int) string {
 		Bold(true).
 		Foreground(lipgloss.Color("86")).
 		Align(lipgloss.Center).
-		Width(width)
+		Width(width).
+		PaddingTop(1).
+		PaddingBottom(1)
 
 	timeStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -629,17 +632,23 @@ func renderClockCard(clk *clock.Clock, width int) string {
 	dateStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241")).
 		Align(lipgloss.Center).
-		Width(width)
+		Width(width).
+		PaddingBottom(1)
 
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
-		Padding(1, 2).
-		Margin(1)
+		Padding(0, 2).
+		MarginLeft(1).
+		MarginRight(0).
+		MarginTop(1).
+		MarginBottom(0)
 
-	// Build card content
-	title := titleStyle.Render(clk.Name)
+	// Build card content with visual spacing
+	title := titleStyle.Render(strings.ToUpper(clk.Name))
+
 	timeStr := timeStyle.Render(clk.FormatTime())
+
 	dateStr := dateStyle.Render(clk.FormatDateWithOffset())
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
