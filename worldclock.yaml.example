@@ -1,0 +1,32 @@
+# Example configuration file for World Clock TUI
+# Copy this file to ~/.config/worldclock.yaml and customize as needed
+
+cities:
+  - name: "Kailua-Kona"
+    timezone: "Pacific/Honolulu"
+
+  - name: "Medicine Hat"
+    timezone: "America/Edmonton"
+
+  - name: "Germany"
+    timezone: "Europe/Berlin"
+
+  - name: "Manila"
+    timezone: "Asia/Manila"
+
+# Additional examples:
+#
+#  - name: "Tokyo"
+#    timezone: "Asia/Tokyo"
+#
+#  - name: "London"
+#    timezone: "Europe/London"
+#
+#  - name: "New York"
+#    timezone: "America/New_York"
+#
+#  - name: "Sydney"
+#    timezone: "Australia/Sydney"
+
+# Find more timezone names at:
+# https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
