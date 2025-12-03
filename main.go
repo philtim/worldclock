@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/philtim/worldclock/clock"
 	"github.com/philtim/worldclock/config"
@@ -17,6 +19,8 @@ type tickMsg time.Time
 // model represents the application state
 type model struct {
 	clocks   []*clock.Clock
+	viewport viewport.Model
+	ready    bool
 	err      error
 	width    int
 	height   int
@@ -30,6 +34,8 @@ func (m model) Init() tea.Cmd {
 
 // Update handles messages and updates the model
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -42,6 +48,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		if !m.ready {
+			// Initialize viewport when we first get dimensions
+			headerHeight := 0
+			footerHeight := 2
+			verticalMarginHeight := headerHeight + footerHeight
+
+			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+			m.viewport.YPosition = headerHeight
+			m.ready = true
+		} else {
+			// Update viewport dimensions
+			headerHeight := 0
+			footerHeight := 2
+			verticalMarginHeight := headerHeight + footerHeight
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - verticalMarginHeight
+		}
+
 	case tickMsg:
 		// Return command to tick again
 		return m, tickCmd()
@@ -51,7 +75,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	return m, nil
+	// Update viewport
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 // View renders the UI
@@ -64,8 +90,22 @@ func (m model) View() string {
 		return "Goodbye!\n"
 	}
 
-	// Render the clocks in a grid layout
-	return renderClocks(m.clocks, m.width, m.height)
+	if !m.ready {
+		return "Initializing..."
+	}
+
+	// Render the clocks content
+	content := renderClocks(m.clocks, m.width, m.viewport.Height)
+
+	// Set viewport content
+	m.viewport.SetContent(content)
+
+	// Build the full view with footer
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Render("Press 'q' or 'Ctrl+C' to quit")
+
+	return fmt.Sprintf("%s\n%s", m.viewport.View(), footer)
 }
 
 // tickCmd returns a command that sends a tick message every second
@@ -96,7 +136,7 @@ func renderClocks(clocks []*clock.Clock, width, height int) string {
 	}
 
 	// Arrange cards in grid
-	var result string
+	var rows_content []string
 	for row := 0; row < rows; row++ {
 		var rowCards []string
 		for col := 0; col < cols; col++ {
@@ -106,18 +146,11 @@ func renderClocks(clocks []*clock.Clock, width, height int) string {
 			}
 		}
 		if len(rowCards) > 0 {
-			result += lipgloss.JoinHorizontal(lipgloss.Top, rowCards...)
-			result += "\n"
+			rows_content = append(rows_content, lipgloss.JoinHorizontal(lipgloss.Top, rowCards...))
 		}
 	}
 
-	// Add footer with instructions
-	footer := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
-		Render("Press 'q' or 'Ctrl+C' to quit")
-	result += "\n" + footer
-
-	return result
+	return strings.Join(rows_content, "\n")
 }
 
 // renderClockCard renders a single clock card
@@ -204,6 +237,9 @@ func main() {
 		}
 		clocks = append(clocks, clk)
 	}
+
+	// Sort clocks by UTC offset (west to east)
+	clock.SortByUTCOffset(clocks)
 
 	// Initialize model
 	m := model{

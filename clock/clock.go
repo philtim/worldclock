@@ -2,6 +2,7 @@ package clock
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -60,4 +61,18 @@ func (c *Clock) FormatUTCOffset() string {
 // Format: "YYYY-MM-DD - UTC±HH:MM"
 func (c *Clock) FormatDateWithOffset() string {
 	return fmt.Sprintf("%s - %s", c.FormatDate(), c.FormatUTCOffset())
+}
+
+// GetUTCOffset returns the UTC offset in seconds
+func (c *Clock) GetUTCOffset() int {
+	t := c.GetTime()
+	_, offset := t.Zone()
+	return offset
+}
+
+// SortByUTCOffset sorts a slice of clocks by their UTC offset (west to east)
+func SortByUTCOffset(clocks []*Clock) {
+	sort.Slice(clocks, func(i, j int) bool {
+		return clocks[i].GetUTCOffset() < clocks[j].GetUTCOffset()
+	})
 }
