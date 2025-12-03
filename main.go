@@ -40,7 +40,6 @@ type model struct {
 	cfg      *config.Config
 	clocks   []*clock.Clock
 	geonamesDB *geonames.Database
-	systemTZ string
 
 	// View state
 	state    viewState
@@ -252,10 +251,8 @@ func (m *model) handleDeleteKeys(msg tea.KeyMsg) tea.Cmd {
 		}
 
 	case " ":
-		// Toggle selection (but not for protected cities)
-		if !m.isCityProtected(m.deleteList[m.deleteCursor]) {
-			m.deleteSelected[m.deleteCursor] = !m.deleteSelected[m.deleteCursor]
-		}
+		// Toggle selection
+		m.deleteSelected[m.deleteCursor] = !m.deleteSelected[m.deleteCursor]
 
 	case "enter":
 		// Delete selected cities
@@ -342,16 +339,6 @@ func (m *model) reloadClocks() tea.Cmd {
 	// Return to main view
 	m.state = viewMain
 	return nil
-}
-
-// isCityProtected checks if a city is protected (matches system timezone)
-func (m *model) isCityProtected(cityName string) bool {
-	for _, city := range m.cfg.Cities {
-		if city.Name == cityName && city.Timezone == m.systemTZ {
-			return true
-		}
-	}
-	return false
 }
 
 // View renders the UI
@@ -476,21 +463,14 @@ func (m model) renderDelete() string {
 
 	// List cities
 	for i, cityName := range m.deleteList {
-		isProtected := m.isCityProtected(cityName)
 		isSelected := m.deleteSelected[i]
 		isCursor := i == m.deleteCursor
 
-		var line string
-		if isProtected {
-			line = fmt.Sprintf("  [ ] %s (protected)", cityName)
-			line = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line)
-		} else {
-			checkbox := " "
-			if isSelected {
-				checkbox = "x"
-			}
-			line = fmt.Sprintf("  [%s] %s", checkbox, cityName)
+		checkbox := " "
+		if isSelected {
+			checkbox = "x"
 		}
+		line := fmt.Sprintf("  [%s] %s", checkbox, cityName)
 
 		if isCursor {
 			line = lipgloss.NewStyle().
@@ -574,7 +554,12 @@ func checkGeoNamesCmd(db *geonames.Database) tea.Cmd {
 // renderClocks renders all clocks in a grid layout
 func renderClocks(clocks []*clock.Clock, width, height int) string {
 	if len(clocks) == 0 {
-		return "No clocks configured\n"
+		// Show helpful message when no clocks are configured
+		helpStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Align(lipgloss.Center).
+			Padding(2, 4)
+		return helpStyle.Render("Press 'a' to add a new city")
 	}
 
 	// Calculate grid dimensions
@@ -700,43 +685,6 @@ func calculateColumns(clocks []*clock.Clock, width int) int {
 }
 
 func main() {
-	// Check if config exists
-	configExists, err := config.ConfigExists()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error checking config: %v\n", err)
-		os.Exit(1)
-	}
-
-	// If config doesn't exist, create it with a smart city name
-	if !configExists {
-		fmt.Println("First run detected. Setting up configuration...")
-		fmt.Println("Downloading city database (this may take a moment)...")
-
-		// Initialize GeoNames database and load synchronously
-		geonamesDB := geonames.NewDatabase()
-		if err := geonamesDB.LoadSync(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Could not load city database: %v\n", err)
-			fmt.Println("Using 'Local' as default city name.")
-			if err := config.CreateDefaultConfigWithCity("Local"); err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating config: %v\n", err)
-				os.Exit(1)
-			}
-		} else {
-			// Find best city for system timezone
-			systemTZ := config.GetSystemTimezone()
-			cityName := geonamesDB.FindBestCityForTimezone(systemTZ)
-			fmt.Printf("Detected timezone: %s\n", systemTZ)
-			fmt.Printf("Using city: %s\n", cityName)
-
-			if err := config.CreateDefaultConfigWithCity(cityName); err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating config: %v\n", err)
-				os.Exit(1)
-			}
-		}
-		fmt.Println("Configuration created successfully!")
-		fmt.Println()
-	}
-
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
@@ -762,9 +710,6 @@ func main() {
 	geonamesDB := geonames.NewDatabase()
 	geonamesDB.LoadAsync()
 
-	// Get system timezone
-	systemTZ := config.GetSystemTimezone()
-
 	// Initialize search input
 	ti := textinput.New()
 	ti.Placeholder = "Search city..."
@@ -776,7 +721,6 @@ func main() {
 		cfg:            cfg,
 		clocks:         clocks,
 		geonamesDB:     geonamesDB,
-		systemTZ:       systemTZ,
 		state:          viewMain,
 		searchInput:    ti,
 		searchResults:  []geonames.City{},

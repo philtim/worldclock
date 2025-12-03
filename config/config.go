@@ -21,7 +21,7 @@ type Config struct {
 }
 
 // Load reads the configuration from ~/.config/worldclock.yaml
-// If the file doesn't exist, it creates a default one
+// If the file doesn't exist, returns an empty config
 func Load() (*Config, error) {
 	configPath, err := getConfigPath()
 	if err != nil {
@@ -30,10 +30,8 @@ func Load() (*Config, error) {
 
 	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Create default config
-		if err := createDefaultConfig(configPath); err != nil {
-			return nil, fmt.Errorf("failed to create default config: %w", err)
-		}
+		// Return empty config
+		return &Config{Cities: []City{}}, nil
 	}
 
 	// Read config file
@@ -58,10 +56,7 @@ func Load() (*Config, error) {
 
 // Validate checks that all timezone identifiers are valid
 func (c *Config) Validate() error {
-	if len(c.Cities) == 0 {
-		return fmt.Errorf("no cities configured")
-	}
-
+	// Allow empty cities list
 	for i, city := range c.Cities {
 		if city.Name == "" {
 			return fmt.Errorf("city at index %d has no name", i)
@@ -251,11 +246,6 @@ func (c *Config) DeleteCities(names []string) error {
 		if !toDelete[city.Name] {
 			remaining = append(remaining, city)
 		}
-	}
-
-	// Check if we have at least one city left
-	if len(remaining) == 0 {
-		return fmt.Errorf("cannot delete all cities")
 	}
 
 	c.Cities = remaining
