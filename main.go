@@ -52,9 +52,10 @@ type model struct {
 	quitting bool
 
 	// Add mode state
-	searchInput    textinput.Model
-	searchResults  []geonames.City
-	selectedResult int
+	searchInput       textinput.Model
+	searchResults     []geonames.City
+	selectedResult    int
+	justEnteredAddMode bool // Flag to prevent initial key from appearing in input
 
 	// Delete mode state
 	deleteList     []string // List of city names
@@ -117,16 +118,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update sub-components based on state
 	switch m.state {
 	case viewAdd:
-		m.searchInput, cmd = m.searchInput.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		// Update search results when input changes
-		if m.geonamesDB.IsReady() {
-			m.searchResults = m.geonamesDB.Search(m.searchInput.Value(), 50)
-			if m.selectedResult >= len(m.searchResults) {
-				m.selectedResult = 0
+		// Only update searchInput if we didn't just enter add mode
+		// (prevents the 'a' key from appearing in the input field)
+		if !m.justEnteredAddMode {
+			m.searchInput, cmd = m.searchInput.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
 			}
+			// Update search results when input changes
+			if m.geonamesDB.IsReady() {
+				m.searchResults = m.geonamesDB.Search(m.searchInput.Value(), 50)
+				if m.selectedResult >= len(m.searchResults) {
+					m.selectedResult = 0
+				}
+			}
+		} else {
+			// Reset the flag after first update cycle
+			m.justEnteredAddMode = false
 		}
 	}
 
@@ -168,6 +176,7 @@ func (m *model) handleMainKeys(msg tea.KeyMsg) tea.Cmd {
 			m.searchInput.Reset()
 			m.searchResults = []geonames.City{}
 			m.selectedResult = 0
+			m.justEnteredAddMode = true // Prevent 'a' key from appearing in input
 			m.searchInput.Focus()
 			return textinput.Blink
 		}
