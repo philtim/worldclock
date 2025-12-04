@@ -28,7 +28,13 @@ A Terminal User Interface (TUI) application in Go that displays multiple world c
 - Supports grid layouts, real-time updates, and modal views
 
 ### Display Specifications
-- Grid layout with multiple clock cards/panels (4 columns by default)
+- **Dynamic grid layout**: Fits as many clocks as possible per row based on terminal width
+- **Minimum clock width**: 20 characters content + 8 overhead = 28 characters total (configurable via `minClockContentWidth` constant in `main.go`)
+- **Layout behavior**: 
+  * Calculates max clocks per row: `terminalWidth / minCardWidth`
+  * All clocks fit in one row if there's space (even 10+ on widescreen)
+  * Overflows to additional rows when needed (fills first row, then second, etc.)
+  * Example: 3 clocks on normal terminal → 1 row; 5 clocks → 2 rows (4+1)
 - Each clock card displays (top to bottom):
   * City Name (UPPERCASE, header with padding)
   * Digital clock (24-hour format: HH:MM:SS)
@@ -37,7 +43,7 @@ A Terminal User Interface (TUI) application in Go that displays multiple world c
 - Clocks sorted by UTC offset (west to east)
 - Viewport scrolling for small terminal windows
 - Visually styled with rounded borders
-- Responsive to terminal window resizing (adapts columns: 4 → 2 → 1)
+- Responsive to terminal window resizing (recalculates layout dynamically)
 - Command bar anchored at very bottom of terminal (no extra lines)
 - Loading spinner in lower right corner while GeoNames downloads
 - Exit: Ctrl-C or 'q'
@@ -62,10 +68,10 @@ worldclock/
 │   └── geonames.go      # GeoNames database download, parsing, searching
 ├── go.mod
 ├── go.sum
-├── .editorconfig        # Editor configuration for consistent formatting
 ├── .gitignore           # Git ignore patterns
 ├── README.md
 ├── CLAUDE.md
+├── Makefile             # Build targets for multiple architectures
 └── worldclock.yaml.example  # Example configuration file
 ```
 
@@ -241,16 +247,26 @@ make test
 - **Text alignment**: All clock content centered within card
 
 ### Code Formatting
-- **EditorConfig**: `.editorconfig` enforces consistent formatting across all editors
-- **Go files**: 4-space indentation (not tabs)
+- **gofmt**: Standard Go formatting tool - use `gofmt -w .` or `go fmt ./...` to format all Go files
+- **Go conventions**: Follow standard Go formatting (tabs for indentation, etc.)
 - **YAML files**: 2-space indentation
 - **Line endings**: Unix-style (LF)
-- **Charset**: UTF-8
-- **Trailing whitespace**: Automatically trimmed
-- **Final newline**: Always inserted
-- All Go files in the project use spaces for indentation to ensure consistency
 
 ## Recent Improvements
+
+### Dynamic Layout System (2025-12-04)
+- **Adaptive column calculation**: Changed from fixed column counts (4→2→1) to dynamic calculation based on terminal width
+- **Smart overflow**: Fits as many clocks as possible per row, only overflows when necessary
+- **Minimum width constant**: Introduced `minClockContentWidth = 20` in `main.go` as single source of truth
+- **Widescreen support**: Can display 10+ clocks in one row on wide monitors
+- **Example behavior**: 3 clocks fit in one row instead of forcing 2x2 grid with empty slot
+- **Implementation**: `calculateColumns()` now returns `min(maxClocksPerRow, numClocks)`
+
+### Build System (2025-12-04)
+- **Makefile added**: Easy cross-compilation for multiple architectures (Linux, macOS, Windows)
+- **Output directory**: All binaries now build to `bin/` directory (not root)
+- **Architecture targets**: Individual targets for AMD64, ARM64, and Apple Silicon
+- **Build commands**: `make build`, `make build-all`, `make build-linux-arm64`, etc.
 
 ### Layout and Spacing (2025-12-04)
 - **CSS-style layout**: Removed global window padding, cards now handle their own margins
@@ -260,10 +276,9 @@ make test
 - **Reduced spacing**: Removed extra line between city name and time for compact display
 - **Command bar anchoring**: Fixed to sit at very bottom with no extra empty lines below
 
-### Code Consistency (2025-12-04)
-- **EditorConfig added**: Enforces consistent formatting across all editors and IDEs
-- **Tab to space conversion**: All Go files converted from tabs to 4-space indentation
-- **Build verification**: Confirmed all files compile successfully after conversion
+### Code Standards (2025-12-04)
+- **gofmt**: Switched to standard Go formatting with `gofmt` (removed `.editorconfig`)
+- **Standard conventions**: Follow Go standard formatting (tabs for indentation)
 
 ### Feature Simplification (2025-12-04)
 - **Removed default timezone**: No auto-creation of config file on first run
