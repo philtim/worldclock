@@ -3,7 +3,11 @@
     "allow": [
       "Bash(go mod init:*)",
       "Bash(go get:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(cat:*)",
+      "Bash(expand:*)",
+      "Bash(clock/clock.go.tmp)",
+      "Bash(config/config.go.tmp)"
     ],
     "deny": [],
     "ask": []
