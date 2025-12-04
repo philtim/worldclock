@@ -119,17 +119,53 @@ worldclock/
 ## Development Commands
 
 ### Build
+
+**Using Make (recommended):**
 ```bash
-go build -o worldclock .
+# Build for current platform (output: bin/worldclock)
+make build
+
+# Build for all common platforms
+make build-all
+
+# Build for specific platforms
+make build-linux-amd64    # Linux x86_64
+make build-linux-arm64    # Linux ARM64
+make build-darwin-amd64   # macOS Intel
+make build-darwin-arm64   # macOS Apple Silicon
+make build-windows-amd64  # Windows x86_64
+
+# Show all available targets
+make help
+```
+
+**Using Go directly:**
+```bash
+# Build for current platform
+go build -o bin/worldclock .
+
+# Cross-compile for Linux AMD64
+GOOS=linux GOARCH=amd64 go build -o bin/worldclock-linux-amd64 .
+
+# Cross-compile for Linux ARM64
+GOOS=linux GOARCH=arm64 go build -o bin/worldclock-linux-arm64 .
 ```
 
 ### Run
 ```bash
-# Run the built binary
-./worldclock
+# Run the built binary (after running make build)
+./bin/worldclock
 
 # Or run directly without building
 go run .
+
+# Or use Make
+make run
+```
+
+### Clean Build Artifacts
+```bash
+make clean
 ```
 
 ### Install Dependencies
@@ -144,6 +180,9 @@ go get github.com/charmbracelet/bubbletea \
 ### Testing
 ```bash
 go test ./...
+
+# Or use Make
+make test
 ```
 
 ## Dependencies

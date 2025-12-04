@@ -22,9 +22,8 @@ go.work.sum
 .cache/
 
 # Build output
-worldclock
-dist/
 bin/
+dist/
 
 # IDE and Editor files
 .vscode/
