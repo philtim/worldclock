@@ -25,6 +25,10 @@ const (
 	viewConfirm
 )
 
+const (
+	minClockContentWidth = 20 // Minimum content width for clock cards
+)
+
 // tickMsg is sent every second to update the clocks
 type tickMsg time.Time
 
@@ -704,42 +708,36 @@ func renderClockCard(clk *clock.Clock, width int) string {
 	return cardStyle.Render(content)
 }
 
-// calculateColumns determines the number of columns based on terminal width and city name lengths
+// calculateColumns determines the number of columns based on terminal width
 func calculateColumns(clocks []*clock.Clock, width int) int {
-	// Find the longest city name (uppercase)
-	maxCityNameLen := 0
-	for _, clk := range clocks {
-		cityNameLen := len(strings.ToUpper(clk.Name))
-		if cityNameLen > maxCityNameLen {
-			maxCityNameLen = cityNameLen
-		}
+	numClocks := len(clocks)
+	if numClocks == 0 {
+		return 1
 	}
 
-	// Minimum content width needed:
-	// - Date line is typically ~27 chars: "2025-12-03 - UTC+01:00"
-	// - City name needs to fit
-	minContentWidth := maxCityNameLen
-	if minContentWidth < 27 {
-		minContentWidth = 27
-	}
+	// Use the minimum content width constant
+	// This ensures the date line (e.g., "2025-12-04 - UTC+05:30") always fits
+	minContentWidth := minClockContentWidth
 
 	// Calculate minimum card width needed
 	// Account for: border (2), padding left/right (4), margins left/right (2)
 	// Total overhead per card: 8 characters
 	minCardWidth := minContentWidth + 8
 
-	// Try 4 columns first (default preference)
-	if width >= minCardWidth*4 {
-		return 4
+	// Calculate how many clocks can fit in one row based on minimum width
+	maxClocksPerRow := width / minCardWidth
+	if maxClocksPerRow < 1 {
+		maxClocksPerRow = 1
 	}
 
-	// Fall back to 2 columns
-	if width >= minCardWidth*2 {
-		return 2
+	// Return the smaller of: max that fits OR total clocks
+	// This ensures:
+	// - All clocks fit in one row if there's room (even 10+ clocks on widescreen)
+	// - We don't create empty slots unnecessarily
+	if maxClocksPerRow >= numClocks {
+		return numClocks // All fit in one row
 	}
-
-	// Last resort: 1 column
-	return 1
+	return maxClocksPerRow // Need multiple rows
 }
 
 func main() {
